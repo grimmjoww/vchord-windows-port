@@ -36,6 +36,10 @@ Output: `vchord.dll` 9.4 MB PE32+ x64. `dumpbin /dependents` shows imports again
 
 See [`WINDOWS_BUILD.md`](./WINDOWS_BUILD.md) for the full guide.
 
+## Status & maintenance
+
+Lazily maintained — these are documentation + helper scripts for an existing build path that already works in the upstream codebase. If a future vchord release breaks the steps documented here, expect a patch within a week or two of me noticing. PRs welcome for: pg version bumps, alternative MSVC toolchains, ARM64 Windows, automation tooling. MIT license — fork freely if you need faster turnaround.
+
 ## Using vchord with Hindsight on Windows
 
 If you're running [vectorize-io/hindsight](https://github.com/vectorize-io/hindsight) on Windows and want to use embedding models above pgvector's 2000-dim HNSW limit (e.g. `Qwen/Qwen3-Embedding-4B` at 2560 dim), vchord is your unlock — `vchordrq` indexes have no such ceiling.

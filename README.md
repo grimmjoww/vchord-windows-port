@@ -36,6 +36,28 @@ Output: `vchord.dll` 9.4 MB PE32+ x64. `dumpbin /dependents` shows imports again
 
 See [`WINDOWS_BUILD.md`](./WINDOWS_BUILD.md) for the full guide.
 
+## Using vchord with Hindsight on Windows
+
+If you're running [vectorize-io/hindsight](https://github.com/vectorize-io/hindsight) on Windows and want to use embedding models above pgvector's 2000-dim HNSW limit (e.g. `Qwen/Qwen3-Embedding-4B` at 2560 dim), vchord is your unlock — `vchordrq` indexes have no such ceiling.
+
+Hindsight already supports vchord natively in its migration logic (`migrations.py` switches index creation to `vchordrq` when the vchord extension is detected). The only piece missing on Windows was the build itself — which is what this repo provides.
+
+Workflow:
+
+1. Build vchord using the steps in [`WINDOWS_BUILD.md`](./WINDOWS_BUILD.md)
+2. Install via `install-vchord.cmd` (admin)
+3. In your Hindsight `.env` or environment:
+   ```
+   HINDSIGHT_API_VECTOR_EXTENSION=vchord
+   ```
+4. Restart Hindsight. It will use vchordrq indexes for any embedding column ≥ 0 dimensions — no 2000 cap.
+5. Re-embed existing data with the [`reindex-embeddings`](https://github.com/vectorize-io/hindsight/pull/1258) admin command (also covers `halfvec` columns):
+   ```
+   hindsight-admin reindex-embeddings --auto-backup ./pre-reembed.zip --verify-recall --yes
+   ```
+
+This combination — vchord on Windows + Hindsight — is the only way as of April 2026 to run Qwen3-Embedding-4B (2560-dim) or 8B (4096-dim) on Hindsight without leaving Windows for Linux/Docker/WSL2.
+
 ## License (this repo)
 
 MIT — these are my notes, scripts, and documentation of an existing build process. Use them however you like.

@@ -11,7 +11,8 @@ This repository documents the toolchain and steps to produce a working `vchord.d
 | `WINDOWS_BUILD.md` | Full toolchain + build + install + verification guide |
 | `with-vc-env.cmd` | Wrapper that activates VS2022 + Postgres dev + LLVM env, then runs your command |
 | `step-build2.cmd` | One-shot build script (calls `cargo run -p xtask --release -- build`) |
-| `install-vchord.cmd` | Admin-required installer — copies DLL + extension files into Postgres dirs |
+| `install-and-prep-vchord-ADMIN.cmd` | **Recommended.** One-click admin script — copies DLL + extension files, edits `postgresql.conf` to add `vchord` to `shared_preload_libraries`, restarts the Postgres service. Single UAC prompt. |
+| `install-vchord.cmd` | Older simpler installer — only copies files (you handle postgresql.conf + service restart manually) |
 | `uninstall-vchord.cmd` | Admin-required uninstaller — removes vchord from Postgres |
 | `test-vchord.sql` | Smoke-test SQL — `CREATE EXTENSION vchord` + create vchordrq index + nearest-neighbor query |
 

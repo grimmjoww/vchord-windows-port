@@ -9,6 +9,8 @@ This repository documents the toolchain and steps to produce a working `vchord.d
 | File | What it does |
 |---|---|
 | `WINDOWS_BUILD.md` | Full toolchain + build + install + verification guide |
+| `HINDSIGHT-1024DIM-UPGRADE.md` | **Validated end-to-end playbook** for migrating an existing Hindsight install from bge-small/384/CPU-torch to qwen3-embedding/1024/Ollama-GPU on top of vchord. Covers all the gotchas (PR #1258 reindex hardcoding, .env auto-load footgun, label allowlist, Blackwell/Optimus GPU pattern). |
+| `reindex-via-ollama.py` | Direct-Ollama reindex helper. Required workaround because hindsight-admin reindex-embeddings hardcodes local sentence-transformers, ignoring the Ollama config. ~12 rows/sec on RTX 5080 mobile, resumable. |
 | `with-vc-env.cmd` | Wrapper that activates VS2022 + Postgres dev + LLVM env, then runs your command |
 | `step-build2.cmd` | One-shot build script (calls `cargo run -p xtask --release -- build`) |
 | `install-and-prep-vchord-ADMIN.cmd` | **Recommended.** One-click admin script — copies DLL + extension files, edits `postgresql.conf` to add `vchord` to `shared_preload_libraries`, restarts the Postgres service. Single UAC prompt. |
@@ -47,21 +49,16 @@ If you're running [vectorize-io/hindsight](https://github.com/vectorize-io/hinds
 
 Hindsight already supports vchord natively in its migration logic (`migrations.py` switches index creation to `vchordrq` when the vchord extension is detected). The only piece missing on Windows was the build itself — which is what this repo provides.
 
-Workflow:
+**For an existing Hindsight install with data in it**, the migration is more involved than just flipping the env var — you'll hit the dim-mismatch and extension-mismatch refusal-to-start safeguards, plus a hardcoded-local-torch issue in the upstream `reindex-embeddings` command. The full validated playbook is in **[HINDSIGHT-1024DIM-UPGRADE.md](./HINDSIGHT-1024DIM-UPGRADE.md)** — it covers the gotchas you'll hit on RTX-class hardware and gives you a `reindex-via-ollama.py` workaround that uses Ollama's GPU instead of melting your CPU.
+
+**Quick high-level workflow** (see the upgrade doc for the full version):
 
 1. Build vchord using the steps in [`WINDOWS_BUILD.md`](./WINDOWS_BUILD.md)
-2. Install via `install-vchord.cmd` (admin)
-3. In your Hindsight `.env` or environment:
-   ```
-   HINDSIGHT_API_VECTOR_EXTENSION=vchord
-   ```
-4. Restart Hindsight. It will use vchordrq indexes for any embedding column ≥ 0 dimensions — no 2000 cap.
-5. Re-embed existing data with the [`reindex-embeddings`](https://github.com/vectorize-io/hindsight/pull/1258) admin command (also covers `halfvec` columns):
-   ```
-   hindsight-admin reindex-embeddings --auto-backup ./pre-reembed.zip --verify-recall --yes
-   ```
+2. Install via `install-and-prep-vchord-ADMIN.cmd` (single UAC prompt, recommended)
+3. For a **fresh** Hindsight install (no data yet): set `HINDSIGHT_API_VECTOR_EXTENSION=vchord` in the env vars your launcher exports (Hindsight does NOT auto-load `.env`), restart, done. New embeddings will land in vchordrq.
+4. For an **existing populated** Hindsight install: follow [HINDSIGHT-1024DIM-UPGRADE.md](./HINDSIGHT-1024DIM-UPGRADE.md). Don't try to skip ahead — you'll burn an afternoon hitting the same gotchas one of us already lived through.
 
-This combination — vchord on Windows + Hindsight — is the only way as of April 2026 to run Qwen3-Embedding-4B (2560-dim) or 8B (4096-dim) on Hindsight without leaving Windows for Linux/Docker/WSL2.
+This combination — vchord on Windows + Hindsight + Ollama-served embedder — is the only way as of April 2026 to run Qwen3-Embedding-4B (2560-dim) or 8B (4096-dim) on Hindsight without leaving Windows for Linux/Docker/WSL2.
 
 ## License (this repo)
 

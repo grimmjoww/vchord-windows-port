@@ -1,7 +1,7 @@
 # Building VectorChord on Windows (Native, MSVC)
 
 > **Status:** First-known successful native Windows MSVC build.
-> Built locally on 2026-04-25 from `tensorchord/VectorChord@main` for PostgreSQL 17 with no source-code changes. PostgreSQL 18 uses the same recipe against `tensorchord/VectorChord@v1.1.1` (verified pending — upstream supports PG 18 in source, your toolchain only needs the PG 18 dev headers swapped in).
+> Built locally on 2026-04-25 from `tensorchord/VectorChord@main` for PostgreSQL 17 with no source-code changes. PostgreSQL 18 verified on 2026-05-02 from `tensorchord/VectorChord@1.1.1` with the same toolchain — only difference: vchord 1.1.1 added a `cshim/x86_64_fp16.c` that requires Clang (not MSVC), so set `CC=clang.exe` for the `cc` crate. See "Pitfalls encountered" below.
 > Outputs a textbook PE32+ Windows DLL that links against `postgres.exe` import library, exactly like pgvector does on Windows.
 
 ## Pull location
@@ -105,6 +105,8 @@ No Linux `.so`, no missing imports, no surprises.
 2. **`cargo pgrx init` requires an existing Postgres install on Windows.** pgrx doesn't auto-download Postgres on Windows the way it does on Linux/macOS. Use the EnterpriseDB installer for Postgres 17 first, then point `cargo pgrx init --pg17` at its `pg_config.exe`.
 3. **xtask requires `PG_CONFIG` env var** — set it before `cargo run -p xtask`. The Linux Makefile sets this; Windows users must do it manually.
 4. **vcvars64.bat env doesn't propagate into bash sessions on Windows.** Use a `.cmd` wrapper that calls vcvars64 then runs your command, or run from a "x64 Native Tools Command Prompt for VS 2022" directly.
+5. **vchord 1.1.1+ requires Clang for C shim files.** vchord 1.1.1 added `cshim/x86_64_fp16.c` which contains `#error "This file requires Clang or GCC."` — the `cc` crate defaults to MSVC's `cl.exe` after `vcvars64`, which fails. Set `CC=clang.exe` and `CC_x86_64_pc_windows_msvc=clang.exe` in your env wrapper before running the build. Affects PG 18 builds (since 1.1.1 is the first release with PG 18 support); also affects PG 17 builds against 1.1.1+. The 0.0.0 / pre-1.1.0 source did not have this dependency.
+6. **vchord 1.1.1 depends on pgvector being installed first.** `CREATE EXTENSION vchord CASCADE` requires the `vector` extension. On Windows that means building pgvector separately via its `nmake /F Makefile.win` flow against the same PG version. Trivial build (~1 min), but it's now a hard prerequisite.
 
 ## Suggested upstream changes for first-class Windows support
 

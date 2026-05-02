@@ -27,7 +27,7 @@ Built end-to-end on:
 - LLVM 22.1.4 (clang + libclang)
 - Rust 1.95.0 stable
 - cargo-pgrx 0.17.0
-- PostgreSQL 17.9 (verified) or 18.3 (build path same as PG 17 — same toolchain works against either set of dev headers; verified pending after first PG 18 build)
+- PostgreSQL 17.9 (verified `tensorchord/VectorChord@main` April 2026) or PostgreSQL 18.3 (verified `tensorchord/VectorChord@1.1.1` May 2026) — same toolchain, same recipe, just point at the matching PG dev headers
 
 Output: `vchord.dll` 9.4 MB PE32+ x64. `dumpbin /dependents` shows imports against `postgres.exe`, KERNEL32, ntdll, VCRUNTIME140, UCRT — exactly the same shape as pgvector's Windows DLL.
 

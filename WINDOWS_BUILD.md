@@ -1,7 +1,7 @@
 # Building VectorChord on Windows (Native, MSVC)
 
 > **Status:** First-known successful native Windows MSVC build.
-> Built locally on 2026-04-25 from `tensorchord/VectorChord@main` for PostgreSQL 17 with no source-code changes. Same recipe verified against `tensorchord/VectorChord@v1.1.1` for PostgreSQL 18 on 2026-05-02.
+> Built locally on 2026-04-25 from `tensorchord/VectorChord@main` for PostgreSQL 17 with no source-code changes. PostgreSQL 18 uses the same recipe against `tensorchord/VectorChord@v1.1.1` (verified pending — upstream supports PG 18 in source, your toolchain only needs the PG 18 dev headers swapped in).
 > Outputs a textbook PE32+ Windows DLL that links against `postgres.exe` import library, exactly like pgvector does on Windows.
 
 ## Pull location

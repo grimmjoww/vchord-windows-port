@@ -27,7 +27,7 @@ Built end-to-end on:
 - LLVM 22.1.4 (clang + libclang)
 - Rust 1.95.0 stable
 - cargo-pgrx 0.17.0
-- PostgreSQL 17.9 or 18.3 (EnterpriseDB installer) — both verified building cleanly with the same toolchain
+- PostgreSQL 17.9 (verified) or 18.3 (build path same as PG 17 — same toolchain works against either set of dev headers; verified pending after first PG 18 build)
 
 Output: `vchord.dll` 9.4 MB PE32+ x64. `dumpbin /dependents` shows imports against `postgres.exe`, KERNEL32, ntdll, VCRUNTIME140, UCRT — exactly the same shape as pgvector's Windows DLL.
 

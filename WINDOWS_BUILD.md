@@ -1,8 +1,20 @@
 # Building VectorChord on Windows (Native, MSVC)
 
 > **Status:** First-known successful native Windows MSVC build.
-> Built locally on 2026-04-25 from `tensorchord/VectorChord@main` for PostgreSQL 17 with no source-code changes.
+> Built locally on 2026-04-25 from `tensorchord/VectorChord@main` for PostgreSQL 17 with no source-code changes. Same recipe verified against `tensorchord/VectorChord@v1.1.1` for PostgreSQL 18 on 2026-05-02.
 > Outputs a textbook PE32+ Windows DLL that links against `postgres.exe` import library, exactly like pgvector does on Windows.
+
+## Pull location
+
+Always clone fresh from upstream — no fork needed, this repo doesn't track vchord source:
+
+```cmd
+git clone https://github.com/tensorchord/VectorChord
+cd VectorChord
+git checkout v1.1.1
+```
+
+Upstream `v1.1.1` (Feb 2026) supports PostgreSQL **14, 15, 16, 17, and 18** in source. Upstream ships Linux binaries for all five but no Windows binaries — that's the gap this repo fills.
 
 ## Result
 
@@ -18,7 +30,7 @@
 | **Rust** | **1.95.0+ (stable)** | The `simd` crate uses AVX-512 FP16 intrinsics (`stdarch_x86_avx512_f16`). These were unstable in 1.93; stabilized in 1.95. **1.93 will not build.** |
 | **MSVC C/C++ Build Tools** | VS2022 17.x (any) | C compilation for `cc` crate dependencies + linker |
 | **LLVM / clang** | 16+ (22.1.4 tested) | `pgrx-pg-sys` uses `bindgen` which requires `libclang.dll`. Set `LIBCLANG_PATH` to the bin dir. |
-| **PostgreSQL 17 dev install** | 17.9 tested | Provides `pg_config.exe`, headers in `include/server/`, and `postgres.lib` import library |
+| **PostgreSQL 17 or 18 dev install** | 17.9 + 18.3 tested | Provides `pg_config.exe`, headers in `include/server/`, and `postgres.lib` import library. Same recipe — pick the version you want vchord to bind against. |
 | **cargo-pgrx** | **0.17.0** (must match `pgrx` pin in `Cargo.toml`) | Build orchestration. `cargo install --locked cargo-pgrx@0.17.0` |
 
 ## Build steps
@@ -33,9 +45,11 @@ set "LIBCLANG_PATH=C:\path\to\llvm\bin"
 
 :: 3. Initialize pgrx (one-time, points at your existing PG install)
 cargo pgrx init --pg17 "C:\Program Files\PostgreSQL\17\bin\pg_config.exe"
+:: For PG 18: cargo pgrx init --pg18 "C:\Program Files\PostgreSQL\18\bin\pg_config.exe"
 
 :: 4. Build vchord
 set "PG_CONFIG=C:\Program Files\PostgreSQL\17\bin\pg_config.exe"
+:: For PG 18: set "PG_CONFIG=C:\Program Files\PostgreSQL\18\bin\pg_config.exe"
 cargo run -p xtask --release -- build
 
 :: Output goes to:
@@ -94,6 +108,8 @@ No Linux `.so`, no missing imports, no surprises.
 
 ## Suggested upstream changes for first-class Windows support
 
-1. Add a Windows runner to `.github/workflows/release.yml` to publish `vchord-pg17-x86_64-windows-msvc.zip` artifacts.
+Upstream `v1.1.1` ships Linux binaries for PG 14, 15, 16, 17, and 18 — but still no Windows binaries. The gap this repo fills.
+
+1. Add a Windows runner to `.github/workflows/release.yml` to publish `vchord-pg{17,18}-x86_64-windows-msvc.zip` artifacts alongside the existing Linux deb/zip outputs.
 2. Document the build process (this file → `docs/installation/windows.md`).
 3. (Optional) Wrap `make build` in a PowerShell script for Windows users who don't have GNU make.

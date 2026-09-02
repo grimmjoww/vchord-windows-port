@@ -1,75 +1,94 @@
 # vchord-windows-port
 
-Native Windows MSVC build documentation and helper scripts for [TensorChord/VectorChord](https://github.com/tensorchord/VectorChord) — the high-dimensional vector search Postgres extension.
+> A verified Windows-native build and migration path for TensorChord/VectorChord and Hindsight—without Docker or WSL2.
 
-This repository documents the toolchain and steps to produce a working `vchord.dll` on Windows without Docker, without WSL2. The vchord codebase already supports `x86_64-pc-windows-msvc` as a target via `xtask`; this repo just fills in the gap so anyone with PostgreSQL on Windows can reproduce the build.
+This repository documents and automates the missing Windows operator experience around [TensorChord/VectorChord](https://github.com/tensorchord/VectorChord), a high-dimensional vector-search extension for PostgreSQL.
 
-## What's here
+The upstream project already contains the `x86_64-pc-windows-msvc` target. This repository supplies the reproducible toolchain notes, helper scripts, installation steps, smoke tests, and Hindsight migration guidance needed to turn that target into a working Windows deployment.
 
-| File | What it does |
-|---|---|
-| `WINDOWS_BUILD.md` | Full toolchain + build + install + verification guide |
-| `HINDSIGHT-1024DIM-UPGRADE.md` | **Validated end-to-end playbook** for migrating an existing Hindsight install from bge-small/384/CPU-torch to qwen3-embedding/1024/Ollama-GPU on top of vchord. Covers all the gotchas (PR #1258 reindex hardcoding, .env auto-load footgun, label allowlist, Blackwell/Optimus GPU pattern). |
-| `reindex-via-ollama.py` | Direct-Ollama reindex helper. Required workaround because hindsight-admin reindex-embeddings hardcodes local sentence-transformers, ignoring the Ollama config. ~12 rows/sec on RTX 5080 mobile, resumable. |
-| `with-vc-env.cmd` | Wrapper that activates VS2022 + Postgres dev + LLVM env, then runs your command |
-| `step-build2.cmd` | One-shot build script (calls `cargo run -p xtask --release -- build`) |
-| `install-and-prep-vchord-ADMIN.cmd` | **Recommended.** One-click admin script — copies DLL + extension files, edits `postgresql.conf` to add `vchord` to `shared_preload_libraries`, restarts the Postgres service. Single UAC prompt. |
-| `install-vchord.cmd` | Older simpler installer — only copies files (you handle postgresql.conf + service restart manually) |
-| `uninstall-vchord.cmd` | Admin-required uninstaller — removes vchord from Postgres |
-| `test-vchord.sql` | Smoke-test SQL — `CREATE EXTENSION vchord` + create vchordrq index + nearest-neighbor query |
+## What was verified
 
-## Verified configuration
+The documented process produced a working `vchord.dll` and exercised extension creation and nearest-neighbor indexing on Windows.
 
-Built end-to-end on:
+Verified environments include:
 
 - Windows 11 24H2
-- Visual Studio 2022 Community (MSVC 14.44)
-- LLVM 22.1.4 (clang + libclang)
+- Visual Studio 2022 Community / MSVC 14.44
+- LLVM 22.1.4
 - Rust 1.95.0 stable
-- cargo-pgrx 0.17.0
-- PostgreSQL 17.9 (verified `tensorchord/VectorChord@main` April 2026) or PostgreSQL 18.3 (verified `tensorchord/VectorChord@1.1.1` May 2026) — same toolchain, same recipe, just point at the matching PG dev headers
+- `cargo-pgrx` 0.17.0
+- PostgreSQL 17.9 with `tensorchord/VectorChord@main`
+- PostgreSQL 18.3 with `tensorchord/VectorChord@1.1.1`
 
-Output: `vchord.dll` 9.4 MB PE32+ x64. `dumpbin /dependents` shows imports against `postgres.exe`, KERNEL32, ntdll, VCRUNTIME140, UCRT — exactly the same shape as pgvector's Windows DLL.
+The resulting DLL was a 64-bit Windows binary linked against the expected PostgreSQL and Windows runtime dependencies.
 
-## Critical gotcha
+## Repository map
 
-**Rust 1.93 and 1.94 fail to build** with `E0658: use of unstable library feature 'stdarch_x86_avx512_f16'` in `crates/simd/src/floating_f16.rs`. Those AVX-512 FP16 intrinsics were stabilized in Rust 1.95.0. After `rustup update`, the build is clean.
+| File | Purpose |
+|---|---|
+| `WINDOWS_BUILD.md` | Full toolchain, build, installation, and verification guide. |
+| `HINDSIGHT-1024DIM-UPGRADE.md` | End-to-end Hindsight migration playbook, including reindex and environment gotchas. |
+| `reindex-via-ollama.py` | Resumable direct-Ollama reindex helper for the upstream local-transformer limitation encountered during migration. |
+| `with-vc-env.cmd` | Activates the Visual Studio, PostgreSQL, and LLVM build environment before running a command. |
+| `step-build2.cmd` | Runs the release build through the upstream `xtask` path. |
+| `install-and-prep-vchord-ADMIN.cmd` | Copies extension files, updates `shared_preload_libraries`, and restarts PostgreSQL with one elevation flow. |
+| `install-vchord.cmd` | Simpler copy-only installer for operators who want to configure PostgreSQL manually. |
+| `uninstall-vchord.cmd` | Removes the installed Windows extension files. |
+| `test-vchord.sql` | Smoke test for extension creation, index creation, and nearest-neighbor lookup. |
+
+## The important build failure
+
+Rust 1.93 and 1.94 failed in the SIMD code with the unstable `stdarch_x86_avx512_f16` feature. Those intrinsics were available on the tested path with Rust 1.95.0. Updating the toolchain resolved the build failure.
+
+That version boundary is documented because it is exactly the sort of issue that turns a supposedly supported target into an afternoon of unexplained compiler errors.
 
 ## Quick start
 
-See [`WINDOWS_BUILD.md`](./WINDOWS_BUILD.md) for the full guide.
+1. Follow [`WINDOWS_BUILD.md`](./WINDOWS_BUILD.md) to install the required MSVC, LLVM, Rust, `cargo-pgrx`, and PostgreSQL development components.
+2. Build the matching upstream VectorChord revision.
+3. Install the extension with `install-and-prep-vchord-ADMIN.cmd`, or use the copy-only installer and configure PostgreSQL manually.
+4. Run [`test-vchord.sql`](./test-vchord.sql).
+5. For a populated Hindsight system, follow [`HINDSIGHT-1024DIM-UPGRADE.md`](./HINDSIGHT-1024DIM-UPGRADE.md) instead of changing the vector extension or dimensions ad hoc.
 
-## Status & maintenance
+## Hindsight integration
 
-Lazily maintained — these are documentation + helper scripts for an existing build path that already works in the upstream codebase. If a future vchord release breaks the steps documented here, expect a patch within a week or two of me noticing. PRs welcome for: pg version bumps, alternative MSVC toolchains, ARM64 Windows, automation tooling. MIT license — fork freely if you need faster turnaround.
+Hindsight can create `vchordrq` indexes when the VectorChord extension is available. For a fresh installation, the high-level path is straightforward: install the extension, select it in Hindsight's runtime configuration, and restart.
 
-## Using vchord with Hindsight on Windows
+A populated installation is more delicate. Operators may encounter:
 
-If you're running [vectorize-io/hindsight](https://github.com/vectorize-io/hindsight) on Windows and want to use embedding models above pgvector's 2000-dim HNSW limit (e.g. `Qwen/Qwen3-Embedding-4B` at 2560 dim), vchord is your unlock — `vchordrq` indexes have no such ceiling.
+- embedding-dimension mismatch safeguards;
+- vector-extension mismatch safeguards;
+- environment variables not being loaded by the launcher they expected;
+- an upstream reindex command using local sentence-transformers instead of the configured Ollama endpoint;
+- GPU-selection and model-serving details on Windows laptops.
 
-Hindsight already supports vchord natively in its migration logic (`migrations.py` switches index creation to `vchordrq` when the vchord extension is detected). The only piece missing on Windows was the build itself — which is what this repo provides.
+The migration guide and `reindex-via-ollama.py` document the tested workaround and verification path.
 
-**For an existing Hindsight install with data in it**, the migration is more involved than just flipping the env var — you'll hit the dim-mismatch and extension-mismatch refusal-to-start safeguards, plus a hardcoded-local-torch issue in the upstream `reindex-embeddings` command. The full validated playbook is in **[HINDSIGHT-1024DIM-UPGRADE.md](./HINDSIGHT-1024DIM-UPGRADE.md)** — it covers the gotchas you'll hit on RTX-class hardware and gives you a `reindex-via-ollama.py` workaround that uses Ollama's GPU instead of melting your CPU.
+## Evidence and portfolio value
 
-**Quick high-level workflow** (see the upgrade doc for the full version):
+This project demonstrates:
 
-1. Build vchord using the steps in [`WINDOWS_BUILD.md`](./WINDOWS_BUILD.md)
-2. Install via `install-and-prep-vchord-ADMIN.cmd` (single UAC prompt, recommended)
-3. For a **fresh** Hindsight install (no data yet): set `HINDSIGHT_API_VECTOR_EXTENSION=vchord` in the env vars your launcher exports (Hindsight does NOT auto-load `.env`), restart, done. New embeddings will land in vchordrq.
-4. For an **existing populated** Hindsight install: follow [HINDSIGHT-1024DIM-UPGRADE.md](./HINDSIGHT-1024DIM-UPGRADE.md). Don't try to skip ahead — you'll burn an afternoon hitting the same gotchas one of us already lived through.
+- Windows-native build troubleshooting across MSVC, LLVM, Rust, `pgrx`, and PostgreSQL;
+- reproducible installation and removal scripts;
+- a real database smoke test rather than a build-only claim;
+- migration planning for an existing AI memory system;
+- documented failure modes and recovery steps;
+- practical integration between Postgres vector search, Hindsight, Ollama, and GPU-served embeddings.
 
-This combination — vchord on Windows + Hindsight + Ollama-served embedder — is the only way as of April 2026 to run Qwen3-Embedding-4B (2560-dim) or 8B (4096-dim) on Hindsight without leaving Windows for Linux/Docker/WSL2.
+The work was completed through an AI-assisted engineering workflow directed by **Willie Stewart / Phantom Horizon Studios**, including requirements definition, agent direction, environment diagnosis, test execution, failure investigation, and documentation review.
 
-## License (this repo)
+## Status and maintenance
 
-MIT — these are my notes, scripts, and documentation of an existing build process. Use them however you like.
+This is a narrowly scoped documentation-and-tooling project for an upstream build path. It is maintained as needed rather than on a release schedule. Verify the upstream VectorChord, Rust, PostgreSQL, and Hindsight versions before treating the documented matrix as current.
 
-The vchord source code itself is **NOT** in this repo. vchord is dual-licensed AGPL-3.0 / Elastic License v2 by TensorChord — get it from [their official repo](https://github.com/tensorchord/VectorChord).
+## Provenance and licensing
 
-## Why this is a separate repo (not an upstream PR)
+The VectorChord source is **not** copied into this repository. It remains governed by TensorChord's licenses. The documentation and helper scripts in this repository are MIT-licensed.
 
-I attempted to contribute these docs upstream as [PR #455](https://github.com/tensorchord/VectorChord/pull/455). Closing it after reading TensorChord's CLA, which grants them the right to "license Your Contributions under any license, including but not limited to copyleft, permissive, commercial, or proprietary license" and to "change or modify the license applied... from time to time."
+An upstream documentation contribution was considered and later closed after review of the contributor agreement. These notes remain independently published so the Windows build path can stay openly accessible without changing upstream ownership or licensing.
 
-I publish my work open. I'm not comfortable signing a precedent that lets anyone relicense my contributions as proprietary later. That's a personal stance, not a value judgment on TensorChord's project — vchord itself is excellent technology and the build worked beautifully.
+## Related
 
-These docs remain here for the community. If anyone at TensorChord wants to incorporate the content into the official repo, please rewrite it under your own CLA — it documents an existing build path, not novel IP.
+- [TensorChord/VectorChord](https://github.com/tensorchord/VectorChord)
+- [vectorize-io/hindsight](https://github.com/vectorize-io/hindsight)
+- [grimmjoww/hindsight-installer-mcp](https://github.com/grimmjoww/hindsight-installer-mcp)
